@@ -389,6 +389,28 @@ class SuppressBlank(LogitFilter):
         if tokens.shape[1] == self.sample_begin:
             logits[:, self.tokenizer.encode(" ") + [self.tokenizer.eot]] = -np.inf
 
+def running(i, dim):
+    dim = 1
+
+    c = torch.cumsum(i, dim=dim)
+    c_mask = c * ~i
+    c_cum = torch.cummax(c_mask, dim=dim)[0]
+
+    return c - c_cum
+
+class ForcePunct(LogitFilter):
+    def __init__(self, tokenizer: Tokenizer, sample_begin: int):
+        self.tokenizer = tokenizer
+        self.sample_begin = sample_begin
+        self.tokens = [self.tokenizer.encode(".")[0],
+                       self.tokenizer.encode("!")[0],
+                       self.tokenizer.encode("?")[0]]
+
+    def apply(self, logits: Tensor, tokens: Tensor):
+        is_punct = (tokens == self.tokens[0]) | (tokens == self.tokens[1]) | (tokens == self.tokens[2])
+
+        logits[:, self.tokens] += running(~is_punct, 1)[:, -1:] * 0.05
+
 
 class SuppressTokens(LogitFilter):
     def __init__(self, suppress_tokens: Sequence[int]):
@@ -482,7 +504,7 @@ class DecodingTask:
             self.decoder = GreedyDecoder(options.temperature, tokenizer.eot)
 
         # logit filters: applies various rules to suppress or penalize certain tokens
-        self.logit_filters = []
+        self.logit_filters = [ForcePunct(tokenizer, self.sample_begin)]
         if self.options.suppress_blank:
             self.logit_filters.append(SuppressBlank(self.tokenizer, self.sample_begin))
         if self.options.suppress_tokens:

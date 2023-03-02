@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import warnings
 from typing import List, Optional, Tuple, Union, Iterator, TYPE_CHECKING
 
@@ -644,7 +645,7 @@ def cli():
         from pyannote.audio import Inference
         vad_pipeline = Inference("pyannote/segmentation",
                             pre_aggregation_hook=lambda segmentation: segmentation,
-                            use_auth_token=hf_token)
+                            use_auth_token=hf_token, device=device)
 
     diarize_pipeline = None
     if diarize:
@@ -704,6 +705,10 @@ def cli():
         if diarize:
             print("Performing diarization...")
             diarize_segments = diarize_pipeline(audio_path, min_speakers=min_speakers, max_speakers=max_speakers)
+            # save diarize segments
+            # pickle.dump(diarize_segments, open(os.path.join(output_dir, audio_basename + ".diarize.pkl"), "wb"))
+            # pickle.dump(result_aligned, open(os.path.join(output_dir, audio_basename + ".results.pkl"), "wb"))
+
             diarize_df = pd.DataFrame(diarize_segments.itertracks(yield_label=True))
             diarize_df['start'] = diarize_df[0].apply(lambda x: x.start)
             diarize_df['end'] = diarize_df[0].apply(lambda x: x.end)
